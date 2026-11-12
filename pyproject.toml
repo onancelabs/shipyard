@@ -1,0 +1,32 @@
+[project]
+name = "shipyard"
+version = "0.1.0"
+description = "Run containerised apps on your own servers with Ansible, Kamal, Caddy, Tailscale and Cloudflare"
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "ansible-core>=2.19,<2.23",
+  "ansible-lint",
+  "yamllint",
+  "pytest",
+  "ruff",
+  "pydo",
+  "azure-core",
+  "certifi",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["ansible/plugins/filter"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint.isort]
+known-first-party = ["shipyard"]
