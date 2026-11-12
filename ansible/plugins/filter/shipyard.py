@@ -20,6 +20,7 @@ class FilterModule:
             "shipyard_firewall_rules": shipyard_firewall_rules,
             "shipyard_validate_secret": shipyard_validate_secret,
             "shipyard_validate_provisioned": shipyard_validate_provisioned,
+            "shipyard_tunnel_ingress": shipyard_tunnel_ingress,
         }
 
 
@@ -134,3 +135,31 @@ def shipyard_validate_provisioned(
         extra = sorted(set(by_name) - {s["name"] for s in servers})
         raise AnsibleFilterError(f"The provider returned servers that aren't listed: {extra}.")
     return [{**by_name[s["name"]], "roles": s["roles"]} for s in servers]
+
+
+def shipyard_tunnel_ingress(routes: list[dict], kamal_proxy_port: int) -> list[dict]:
+    """Build cloudflared's ingress list, answering 404 for anything a route doesn't name.
+
+    :param routes: `{hostname, path?, host_header?, service?}` entries. Without `service`, the route goes to
+        kamal-proxy, which picks the app by Host, so `host_header` must name the app's registered host.
+    """
+    ingress: list[dict] = []
+    for index, route in enumerate(routes):
+        hostname = route["hostname"]
+        entry: dict = {"hostname": hostname, "service": route.get("service")}
+        if not entry["service"]:
+            if not route.get("host_header"):
+                raise AnsibleFilterError(
+                    f"Tunnel route {hostname!r} goes to kamal-proxy and needs host_header."
+                )
+            entry["service"] = f"http://127.0.0.1:{kamal_proxy_port}"
+        if route.get("host_header"):
+            entry["originRequest"] = {"httpHostHeader": route["host_header"]}
+        if route.get("path"):
+            entry["path"] = route["path"]
+        ingress.append(entry)
+        later_same_host = any(r["hostname"] == hostname for r in routes[index + 1 :])
+        if route.get("path") and not later_same_host:
+            ingress.append({"hostname": hostname, "service": "http_status:404"})
+    ingress.append({"service": "http_status:404"})
+    return ingress

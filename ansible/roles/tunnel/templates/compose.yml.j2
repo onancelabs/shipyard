@@ -1,0 +1,16 @@
+name: {{ shipyard_project }}-tunnel
+services:
+  cloudflared:
+    image: {{ tunnel_image }}
+    container_name: cloudflared
+    restart: unless-stopped
+    network_mode: host
+    # The image runs as uid 65532, which can't read the root-owned 0600 credentials file.
+    user: "0:0"
+    command: ["tunnel", "--no-autoupdate", "--config", "/etc/cloudflared/config.yml", "run"]
+    mem_limit: {{ tunnel_mem_limit }}
+    volumes:
+      - ./:/etc/cloudflared:ro
+    labels:
+      # cloudflared doesn't reload its config, so a change must recreate the container.
+      shipyard.config-hash: "{{ (tunnel_config ~ (vault_tunnel_credentials | string)) | hash('sha1') }}"

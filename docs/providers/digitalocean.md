@@ -24,4 +24,4 @@ Sizes and regions use DigitalOcean's slugs, such as `s-2vcpu-4gb` and `nyc3`. `d
 - **Outbound mail ports are blocked.** DigitalOcean blocks outbound SMTP on ports 25, 465 and 587 for new accounts. Use your mail provider's alternate ports, such as 2465 or 2587, for alerts or app mail.
 - **Recreating a droplet** is the fix for a failed first boot. See [Rebuild a server](../runbooks/rebuild-a-server.md).
 - **Break-glass access** is the droplet's **Recovery Console** in the control panel. See [Break-glass access](../runbooks/break-glass.md).
-- **Load balancer:** not supported yet.
+- **Load balancer:** supported. See [Load balancer](../modules/load-balancer.md).

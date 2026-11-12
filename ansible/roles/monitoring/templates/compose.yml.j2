@@ -1,0 +1,58 @@
+# Receivers listen on the tailnet address only. The tailnet ACL decides which servers may send.
+name: {{ shipyard_project }}-monitoring
+services:
+  prometheus:
+    image: {{ monitoring_prometheus_image }}
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/monitoring/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time={{ monitoring_retention_days }}d
+      - --web.enable-remote-write-receiver
+    ports: ["{{ shipyard_tailscale_ip }}:9090:9090"]
+    mem_limit: {{ monitoring_prometheus_mem_limit }}
+    labels:
+      shipyard.config-hash: "{{ monitoring_conf.results | map(attribute='checksum') | join | hash('sha1') }}"
+    volumes:
+      - ./conf:/etc/monitoring:ro
+      - ./prometheus:/prometheus
+  loki:
+    image: {{ monitoring_loki_image }}
+    container_name: loki
+    restart: unless-stopped
+    command: ["-config.file=/etc/monitoring/loki.yml"]
+    ports: ["{{ shipyard_tailscale_ip }}:3100:3100"]
+    mem_limit: {{ monitoring_loki_mem_limit }}
+    labels:
+      shipyard.config-hash: "{{ monitoring_conf.results | map(attribute='checksum') | join | hash('sha1') }}"
+    volumes:
+      - ./conf:/etc/monitoring:ro
+      - ./loki:/loki
+  tempo:
+    image: {{ monitoring_tempo_image }}
+    container_name: tempo
+    restart: unless-stopped
+    command: ["-config.file=/etc/monitoring/tempo.yml"]
+    ports: ["{{ shipyard_tailscale_ip }}:4317:4317"]
+    mem_limit: {{ monitoring_tempo_mem_limit }}
+    labels:
+      shipyard.config-hash: "{{ monitoring_conf.results | map(attribute='checksum') | join | hash('sha1') }}"
+    volumes:
+      - ./conf:/etc/monitoring:ro
+      - ./tempo:/var/tempo
+  grafana:
+    image: {{ monitoring_grafana_image }}
+    container_name: grafana
+    restart: unless-stopped
+    env_file: grafana.env
+    environment:
+      GF_SERVER_ROOT_URL: https://{{ monitoring_grafana_host }}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports: ["127.0.0.1:3000:3000"]
+    mem_limit: {{ monitoring_grafana_mem_limit }}
+    labels:
+      shipyard.config-hash: "{{ monitoring_conf.results | map(attribute='checksum') | join | hash('sha1') }}"
+    volumes:
+      - ./conf/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana:/var/lib/grafana

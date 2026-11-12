@@ -5,14 +5,14 @@
 	default_bind {{ shipyard_tailscale_ip }}
 {% else %}
 	servers {
-		trusted_proxies static {{ shipyard_cloudflare_ips | join(' ') }}
+		trusted_proxies static {{ shipyard_cloudflare_ips | join(' ') }}{{ ' ' ~ shipyard_network_cidr if shipyard_load_balancer else '' }}
 		client_ip_headers CF-Connecting-IP X-Forwarded-For
 	}
 {% endif %}
 }
 
 *.{{ shipyard_domain }}, {{ shipyard_domain }} {
-	reverse_proxy 127.0.0.1:{{ shipyard_kamal_proxy_port }} {
+	reverse_proxy {{ caddy_upstream }} {
 		header_up Host {host}
 	}
 }

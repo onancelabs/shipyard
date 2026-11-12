@@ -12,3 +12,5 @@ vault_r2_access_key_id: ""
 vault_r2_secret_access_key: ""
 # DigitalOcean personal access token with read and write scope.
 vault_digitalocean_token: ""
+# Only with shipyard_tunnel: the tunnel's <id>.json, pasted as a |- block.
+vault_tunnel_credentials: ""

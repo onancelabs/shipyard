@@ -1,0 +1,62 @@
+- name: Check the monitoring node is set
+  ansible.builtin.assert:
+    that: observability_mon_host | length > 0
+    fail_msg: Set observability_mon_host to the monitoring node's tailnet name.
+    quiet: true
+
+# Servers run with --accept-dns=false, so they can't resolve tailnet names. Alloy gets the address pinned.
+- name: Look up the monitoring node's tailnet address
+  ansible.builtin.command: tailscale ip -4 {{ observability_mon_host }}
+  delegate_to: localhost
+  run_once: true
+  register: observability_mon_lookup
+  changed_when: false
+
+- name: Find the Docker bridge address apps reach as host.docker.internal
+  ansible.builtin.command: docker network inspect bridge -f '{{ '{{' }}(index .IPAM.Config 0).Gateway{{ '}}' }}'
+  register: observability_bridge
+  changed_when: false
+
+- name: Note what this server runs
+  ansible.builtin.set_fact:
+    observability_mon_ip: "{{ observability_mon_lookup.stdout_lines | first }}"
+    observability_bridge_ip: "{{ observability_bridge.stdout | trim }}"
+    observability_data: "{{ 'data' in shipyard_roles }}"
+    observability_app: "{{ 'app' in shipyard_roles }}"
+
+- name: Create the observability directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ shipyard_dir }}/observability"
+    - /var/lib/node_exporter/textfile
+
+- name: Write the exporter credentials
+  when: observability_data
+  ansible.builtin.copy:
+    dest: "{{ shipyard_dir }}/observability/exporters.env"
+    content: |
+      DATA_SOURCE_NAME=postgresql://{{ data_postgres_user }}:{{ vault_postgres_password }}@postgres:5432/{{ data_postgres_db }}?sslmode=disable
+      REDIS_ADDR=redis://redis:6379
+      REDIS_PASSWORD={{ vault_redis_password }}
+    mode: "0600"
+  no_log: true
+
+- name: Write the Alloy config
+  ansible.builtin.template:
+    src: config.alloy.j2
+    dest: "{{ shipyard_dir }}/observability/config.alloy"
+    mode: "0644"
+
+- name: Write the compose file
+  ansible.builtin.template:
+    src: compose.yml.j2
+    dest: "{{ shipyard_dir }}/observability/compose.yml"
+    mode: "0644"
+
+- name: Start the agents
+  community.docker.docker_compose_v2:
+    project_src: "{{ shipyard_dir }}/observability"
+    state: present

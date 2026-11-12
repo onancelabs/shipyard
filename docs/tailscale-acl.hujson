@@ -5,14 +5,19 @@
 		"tag:<project>-ci-dev":  ["autogroup:admin"],
 		"tag:<project>-prod":    ["autogroup:admin"],
 		"tag:<project>-ci-prod": ["autogroup:admin"],
+		"tag:<project>-mon":     ["autogroup:admin"],
+		"tag:<project>-ci-mon":  ["autogroup:admin"],
 	},
 
 	"grants": [
 		// Admins reach every server.
-		{"src": ["autogroup:admin"], "dst": ["tag:<project>-dev", "tag:<project>-prod"], "ip": ["*"]},
+		{"src": ["autogroup:admin"], "dst": ["tag:<project>-dev", "tag:<project>-prod", "tag:<project>-mon"], "ip": ["*"]},
 		// Each CI tag reaches only its own environment.
 		{"src": ["tag:<project>-ci-dev"], "dst": ["tag:<project>-dev"], "ip": ["tcp:22"]},
 		{"src": ["tag:<project>-ci-prod"], "dst": ["tag:<project>-prod"], "ip": ["tcp:22"]},
+		{"src": ["tag:<project>-ci-mon"], "dst": ["tag:<project>-mon"], "ip": ["tcp:22"]},
+		// Servers send metrics, logs and traces to the monitoring node, and nothing else.
+		{"src": ["tag:<project>-dev", "tag:<project>-prod"], "dst": ["tag:<project>-mon"], "ip": ["tcp:9090", "tcp:3100", "tcp:4317"]},
 	],
 
 	"ssh": [
@@ -21,5 +26,7 @@
 		{"action": "check", "src": ["autogroup:admin"], "dst": ["tag:<project>-prod"], "users": ["root"]},
 		{"action": "accept", "src": ["tag:<project>-ci-dev"], "dst": ["tag:<project>-dev"], "users": ["root"]},
 		{"action": "accept", "src": ["tag:<project>-ci-prod"], "dst": ["tag:<project>-prod"], "users": ["root"]},
+		{"action": "accept", "src": ["autogroup:admin"], "dst": ["tag:<project>-mon"], "users": ["root"]},
+		{"action": "accept", "src": ["tag:<project>-ci-mon"], "dst": ["tag:<project>-mon"], "users": ["root"]},
 	],
 }

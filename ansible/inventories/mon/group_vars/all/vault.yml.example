@@ -1,0 +1,9 @@
+# Copy into the encrypted vault with: make vault-init ENV=mon
+# Tailscale OAuth client with the auth_keys scope and tag:<project>-mon as an owned tag.
+vault_tailscale_oauth_client_id: ""
+vault_tailscale_oauth_client_secret: ""
+# Cloudflare API token with Zone DNS Edit on the zone in shipyard_domain.
+vault_cloudflare_token: ""
+# Generate with: openssl rand -hex 24
+vault_grafana_admin_password: ""
+vault_digitalocean_token: ""

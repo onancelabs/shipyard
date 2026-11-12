@@ -1,0 +1,10 @@
+monitoring_prometheus_image: prom/prometheus:v3.16.0
+monitoring_loki_image: grafana/loki:3.7.9
+monitoring_tempo_image: grafana/tempo:2.10.10
+monitoring_grafana_image: grafana/grafana:13.2.6
+monitoring_retention_days: 15
+monitoring_prometheus_mem_limit: 1g
+monitoring_loki_mem_limit: 512m
+monitoring_tempo_mem_limit: 512m
+monitoring_grafana_mem_limit: 256m
+monitoring_grafana_host: grafana.{{ shipyard_domain }}

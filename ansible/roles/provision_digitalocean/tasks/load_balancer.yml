@@ -1,0 +1,28 @@
+# The module only creates and deletes, so the target droplets are fixed when the load balancer is created.
+- name: Create the load balancer
+  digitalocean.cloud.load_balancer:
+    token: "{{ vault_digitalocean_token }}"
+    name: "{{ do_name }}"
+    region: "{{ shipyard_region }}"
+    vpc_uuid: "{{ do_vpc.vpc.id }}"
+    size_unit: 1
+    droplet_ids: "{{ do_droplets.droplets | selectattr('tags', 'contains', 'role-proxy') | map(attribute='id') | list }}"
+    forwarding_rules:
+      - {entry_protocol: https, entry_port: 443, target_protocol: https, target_port: 443, tls_passthrough: true}
+    health_checks: {protocol: tcp, port: 443, check_interval_seconds: 10, response_timeout_seconds: 5,
+                    healthy_threshold: 3, unhealthy_threshold: 3}
+    firewall:
+      allow: "{{ shipyard_cloudflare_ips | reject('search', ':') | map('regex_replace', '^', 'cidr:') | list }}"
+    disable_lets_encrypt_dns_records: true
+
+- name: Wait for the load balancer's address
+  digitalocean.cloud.load_balancers_info:
+    token: "{{ vault_digitalocean_token }}"
+  register: do_lbs
+  until: do_lbs.load_balancers | selectattr('name', 'equalto', do_name) | map(attribute='ip') | select | list | length > 0
+  retries: 30
+  delay: 10
+
+- name: Remember the load balancer's address
+  ansible.builtin.set_fact:
+    shipyard_lb_ip: "{{ do_lbs.load_balancers | selectattr('name', 'equalto', do_name) | map(attribute='ip') | first }}"

@@ -1,0 +1,72 @@
+name: {{ shipyard_project }}-observability
+services:
+  node-exporter:
+    image: {{ observability_node_exporter_image }}
+    container_name: node-exporter
+    restart: unless-stopped
+    network_mode: host
+    pid: host
+    command:
+      - --path.rootfs=/host
+      - --web.listen-address=127.0.0.1:9100
+      - --collector.textfile.directory=/textfile
+    mem_limit: {{ observability_node_exporter_mem_limit }}
+    volumes:
+      - /:/host:ro,rslave
+      - /var/lib/node_exporter/textfile:/textfile:ro
+  cadvisor:
+    image: {{ observability_cadvisor_image }}
+    container_name: cadvisor
+    restart: unless-stopped
+    privileged: true
+    # 9101, because kamal-proxy already listens on 8080.
+    ports: ["127.0.0.1:9101:8080"]
+    command: ["--docker_only=true", "--housekeeping_interval=30s"]
+    mem_limit: {{ observability_cadvisor_mem_limit }}
+    devices: ["/dev/kmsg"]
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+{% if observability_data %}
+  postgres-exporter:
+    image: {{ observability_postgres_exporter_image }}
+    container_name: postgres-exporter
+    restart: unless-stopped
+    env_file: exporters.env
+    # Postgres 17 moved these columns, and the collector errors without this flag.
+    command: ["--no-collector.stat_bgwriter"]
+    ports: ["127.0.0.1:9187:9187"]
+    mem_limit: {{ observability_exporter_mem_limit }}
+    networks: [shared]
+  redis-exporter:
+    image: {{ observability_redis_exporter_image }}
+    container_name: redis-exporter
+    restart: unless-stopped
+    env_file: exporters.env
+    ports: ["127.0.0.1:9121:9121"]
+    mem_limit: {{ observability_exporter_mem_limit }}
+    networks: [shared]
+{% endif %}
+  alloy:
+    image: {{ observability_alloy_image }}
+    container_name: alloy
+    restart: unless-stopped
+    network_mode: host
+    command: ["run", "--server.http.listen-addr=127.0.0.1:12345", "--storage.path=/var/lib/alloy/data", "/etc/alloy/config.alloy"]
+    extra_hosts:
+      - "{{ observability_mon_host }}:{{ observability_mon_ip }}"
+    mem_limit: {{ observability_alloy_mem_limit }}
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    labels:
+      shipyard.config-hash: "{{ lookup('ansible.builtin.template', 'config.alloy.j2') | hash('sha1') }}"
+{% if observability_data %}
+networks:
+  shared:
+    external: true
+    name: {{ shipyard_docker_network }}
+{% endif %}

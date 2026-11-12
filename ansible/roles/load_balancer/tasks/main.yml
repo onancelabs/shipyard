@@ -1,0 +1,15 @@
+- name: Read what {{ shipyard_provider }} supports
+  ansible.builtin.include_vars:
+    file: "{{ role_path }}/../provision_{{ shipyard_provider }}/meta/shipyard.yml"
+    name: load_balancer_provider
+
+- name: Check {{ shipyard_provider }} has a load balancer
+  ansible.builtin.assert:
+    that: "'load_balancer' in load_balancer_provider.capabilities"
+    fail_msg: "{{ shipyard_provider }} has no load balancer. Set shipyard_load_balancer: false."
+    quiet: true
+
+- name: Create the load balancer with {{ shipyard_provider }}
+  ansible.builtin.include_role:
+    name: provision_{{ shipyard_provider }}
+    tasks_from: load_balancer

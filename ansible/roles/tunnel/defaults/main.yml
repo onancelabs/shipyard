@@ -1,0 +1,5 @@
+tunnel_image: cloudflare/cloudflared:2026.10.7
+tunnel_id: ""
+# Each route: {hostname, path?, host_header?, service?}. Without service, it goes to kamal-proxy.
+tunnel_routes: []
+tunnel_mem_limit: 128m

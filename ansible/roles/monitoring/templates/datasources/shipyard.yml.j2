@@ -1,0 +1,23 @@
+# Fixed UIDs keep links between traces, logs and metrics working after a rebuild.
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: shipyard-prometheus
+    type: prometheus
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      timeInterval: 60s
+  - name: Loki
+    uid: shipyard-loki
+    type: loki
+    url: http://loki:3100
+  - name: Tempo
+    uid: shipyard-tempo
+    type: tempo
+    url: http://tempo:3200
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: shipyard-loki
+      serviceMap:
+        datasourceUid: shipyard-prometheus

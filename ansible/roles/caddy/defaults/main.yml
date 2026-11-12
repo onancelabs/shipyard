@@ -1,2 +1,4 @@
 caddy_image: caddybuilds/caddy-cloudflare:2.11.9
 caddy_mem_limit: 256m
+# The monitoring node points this at Grafana.
+caddy_upstream: 127.0.0.1:{{ shipyard_kamal_proxy_port }}

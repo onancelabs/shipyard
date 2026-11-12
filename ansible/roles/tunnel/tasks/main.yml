@@ -1,0 +1,57 @@
+- name: Check the tunnel settings
+  ansible.builtin.assert:
+    that:
+      - tunnel_id | length > 0
+      - tunnel_routes | length > 0
+      - vault_tunnel_credentials is defined
+    fail_msg: The tunnel needs tunnel_id, tunnel_routes and vault_tunnel_credentials.
+    quiet: true
+
+- name: Create the tunnel directory
+  ansible.builtin.file:
+    path: "{{ shipyard_dir }}/tunnel"
+    state: directory
+    mode: "0750"
+
+# The vault may hold the credentials as pasted JSON text or as parsed YAML. Both end up as JSON.
+- name: Write the tunnel credentials
+  ansible.builtin.copy:
+    dest: "{{ shipyard_dir }}/tunnel/credentials.json"
+    content: "{{ (vault_tunnel_credentials if vault_tunnel_credentials is mapping else vault_tunnel_credentials | from_json) | to_json }}"
+    mode: "0600"
+  no_log: true
+
+- name: Build the tunnel config
+  ansible.builtin.set_fact:
+    tunnel_config: "{{ {'tunnel': tunnel_id, 'credentials-file': '/etc/cloudflared/credentials.json',
+      'ingress': tunnel_routes | shipyard_tunnel_ingress(shipyard_kamal_proxy_port)} | to_nice_yaml }}"
+
+- name: Write the tunnel config
+  ansible.builtin.copy:
+    dest: "{{ shipyard_dir }}/tunnel/config.yml"
+    content: "{{ tunnel_config }}"
+    mode: "0644"
+
+- name: Write the compose file
+  ansible.builtin.template:
+    src: compose.yml.j2
+    dest: "{{ shipyard_dir }}/tunnel/compose.yml"
+    mode: "0644"
+
+- name: Start the tunnel
+  community.docker.docker_compose_v2:
+    project_src: "{{ shipyard_dir }}/tunnel"
+    state: present
+
+- name: Point each tunnel hostname at the tunnel
+  community.general.cloudflare_dns:
+    api_token: "{{ vault_cloudflare_token }}"
+    zone: "{{ shipyard_domain }}"
+    record: "{{ item }}"
+    type: CNAME
+    value: "{{ tunnel_id }}.cfargotunnel.com"
+    proxied: true
+    solo: true
+  loop: "{{ tunnel_routes | map(attribute='hostname') | unique }}"
+  delegate_to: localhost
+  run_once: true

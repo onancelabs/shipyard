@@ -32,5 +32,10 @@
   ansible.builtin.include_role:
     name: provision_{{ shipyard_provider }}
 
+- name: Add the load balancer
+  when: shipyard_load_balancer
+  ansible.builtin.include_role:
+    name: load_balancer
+
 - name: Write the inventory
   ansible.builtin.include_tasks: write_inventory.yml

@@ -1,0 +1,11 @@
+# The monitoring node's tailnet name, for example example-mon-main.
+observability_mon_host: ""
+observability_node_exporter_image: prom/node-exporter:v1.12.1
+observability_cadvisor_image: ghcr.io/google/cadvisor:v0.60.6
+observability_alloy_image: grafana/alloy:v1.21.3
+observability_postgres_exporter_image: prometheuscommunity/postgres-exporter:v0.20.1
+observability_redis_exporter_image: oliver006/redis_exporter:v1.97.0
+observability_node_exporter_mem_limit: 64m
+observability_cadvisor_mem_limit: 192m
+observability_alloy_mem_limit: 256m
+observability_exporter_mem_limit: 64m

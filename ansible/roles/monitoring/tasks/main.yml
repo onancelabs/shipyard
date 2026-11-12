@@ -1,0 +1,42 @@
+- name: Create the monitoring directories
+  ansible.builtin.file:
+    path: "{{ shipyard_dir }}/monitoring/{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner | default('root') }}"
+    group: "{{ item.owner | default('root') }}"
+    mode: "0755"
+  loop:
+    - {path: conf}
+    - {path: conf/datasources}
+    - {path: prometheus, owner: "65534"}
+    - {path: loki, owner: "10001"}
+    - {path: tempo, owner: "10001"}
+    - {path: grafana, owner: "472"}
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Write the configs
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ shipyard_dir }}/monitoring/conf/{{ item }}"
+    mode: "0644"
+  loop: [prometheus.yml, loki.yml, tempo.yml, datasources/shipyard.yml]
+  register: monitoring_conf
+
+- name: Write Grafana's admin password
+  ansible.builtin.copy:
+    dest: "{{ shipyard_dir }}/monitoring/grafana.env"
+    content: "GF_SECURITY_ADMIN_PASSWORD={{ vault_grafana_admin_password }}\n"
+    mode: "0600"
+  no_log: true
+
+- name: Write the compose file
+  ansible.builtin.template:
+    src: compose.yml.j2
+    dest: "{{ shipyard_dir }}/monitoring/compose.yml"
+    mode: "0644"
+
+- name: Start the monitoring stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ shipyard_dir }}/monitoring"
+    state: present

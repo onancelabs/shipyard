@@ -26,6 +26,12 @@
       when: "'data' in shipyard_roles"
     - role: backups
       when: "'data' in shipyard_roles and backups_r2_bucket | default('') | length > 0"
+    - role: tunnel
+      when: "shipyard_tunnel and 'proxy' in shipyard_roles"
+    - role: monitoring
+      when: "'mon' in shipyard_roles"
+    - role: observability
+      when: "shipyard_observability and 'mon' not in shipyard_roles"
 
 - name: Publish DNS
   hosts: localhost
