@@ -1,0 +1,52 @@
+- name: Firewall {{ byo_server.name }}
+  vars:
+    hostname: "{{ byo_server.name | shipyard_hostname(shipyard_project, shipyard_env) }}"
+    rules: "{{ shipyard_firewall_by_server[hostname] }}"
+    ansible_connection: ssh
+    ansible_user: root
+    ansible_python_interpreter: /usr/bin/python3
+  delegate_to: "{{ hostname }}"
+  block:
+    - name: Install nftables
+      ansible.builtin.apt:
+        name: nftables
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Create the rules directory
+      ansible.builtin.file:
+        path: /etc/nftables.d
+        state: directory
+        mode: "0755"
+
+    - name: Write the rules
+      ansible.builtin.template:
+        src: shipyard.nft.j2
+        dest: /etc/nftables.d/shipyard.nft
+        mode: "0644"
+        validate: nft -c -f %s
+      register: byo_nft
+
+    - name: Install the firewall service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/shipyard-firewall.service
+        content: |
+          [Unit]
+          Description=Shipyard host firewall
+          Before=network-pre.target docker.service
+          Wants=network-pre.target
+          [Service]
+          Type=oneshot
+          RemainAfterExit=true
+          ExecStart=/usr/sbin/nft -f /etc/nftables.d/shipyard.nft
+          [Install]
+          WantedBy=multi-user.target
+        mode: "0644"
+      register: byo_unit
+
+    - name: Load the firewall
+      ansible.builtin.systemd_service:
+        name: shipyard-firewall
+        enabled: true
+        state: "{{ 'restarted' if (byo_nft is changed or byo_unit is changed) else 'started' }}"
+        daemon_reload: "{{ byo_unit is changed }}"

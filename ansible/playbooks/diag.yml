@@ -1,0 +1,17 @@
+- name: Collect a snapshot from every server
+  hosts: shipyard_servers
+  gather_facts: false
+  tasks:
+    - name: Gather containers, disk, Caddy logs and Tailscale state
+      ansible.builtin.shell: |
+        echo "== containers"; docker ps --format 'table {{ '{{' }}.Names{{ '}}' }}\t{{ '{{' }}.Status{{ '}}' }}\t{{ '{{' }}.Image{{ '}}' }}'
+        echo "== disk"; df -h / {{ shipyard_volume_mount | default('') }} 2>/dev/null
+        echo "== memory"; free -m
+        echo "== caddy"; docker logs --tail 20 caddy 2>&1 || true
+        echo "== tailscale"; tailscale status --self=true --peers=false
+      register: diag_out
+      changed_when: false
+
+    - name: Show it
+      ansible.builtin.debug:
+        msg: "{{ diag_out.stdout_lines }}"

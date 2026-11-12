@@ -1,0 +1,14 @@
+# Copy into the encrypted vault with: make vault-init ENV=prod
+# Tailscale OAuth client with the auth_keys scope and tag:<project>-<env> as an owned tag.
+vault_tailscale_oauth_client_id: ""
+vault_tailscale_oauth_client_secret: ""
+# Cloudflare API token with Zone DNS Edit on this environment's zone only.
+vault_cloudflare_token: ""
+# Generate each with: openssl rand -hex 24
+vault_postgres_password: ""
+vault_redis_password: ""
+# R2 token scoped to the backup bucket, Object Read and Write.
+vault_r2_access_key_id: ""
+vault_r2_secret_access_key: ""
+# DigitalOcean personal access token with read and write scope.
+vault_digitalocean_token: ""

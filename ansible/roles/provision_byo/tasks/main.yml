@@ -1,0 +1,60 @@
+- name: See which machines are already on the tailnet
+  ansible.builtin.command: tailscale ping -c 1 --timeout 5s {{ item.name | shipyard_hostname(shipyard_project, shipyard_env) }}
+  loop: "{{ shipyard_servers_valid }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: byo_ping
+  changed_when: false
+  failed_when: false
+
+- name: Work out which machines still need to join
+  ansible.builtin.set_fact:
+    byo_missing: "{{ byo_ping.results | rejectattr('rc', 'equalto', 0) | map(attribute='item') | list }}"
+
+- name: Mint Tailscale keys for those machines only
+  ansible.builtin.include_role:
+    name: tailscale_key
+  vars:
+    tailscale_key_hostnames: "{{ byo_missing | map(attribute='name') | map('shipyard_hostname', shipyard_project, shipyard_env) | list }}"
+
+# The only time Shipyard uses the machine's own SSH. Every later step goes over Tailscale.
+- name: Join the tailnet over a one-off SSH session
+  ansible.builtin.shell: |
+    set -euo pipefail
+    command -v tailscale >/dev/null || curl -fsSL https://tailscale.com/install.sh | sh
+    tailscale up --auth-key='{{ shipyard_tailscale_keys[hostname] }}' --ssh --hostname='{{ hostname }}' --accept-dns=false
+  args:
+    executable: /bin/bash
+  vars:
+    hostname: "{{ item.name | shipyard_hostname(shipyard_project, shipyard_env) }}"
+    ansible_connection: ssh
+    ansible_user: "{{ item.ssh_user | default('root') }}"
+    ansible_become: "{{ item.ssh_user | default('root') != 'root' }}"
+    ansible_python_interpreter: /usr/bin/python3
+  delegate_to: "{{ item.address }}"
+  loop: "{{ byo_missing }}"
+  loop_control:
+    label: "{{ item.name }}"
+  changed_when: true
+  no_log: "{{ not shipyard_debug }}"
+
+- name: Apply the host firewall over the tailnet
+  ansible.builtin.include_tasks: firewall.yml
+  loop: "{{ shipyard_servers_valid }}"
+  loop_control:
+    loop_var: byo_server
+    label: "{{ byo_server.name }}"
+
+- name: Report what was provisioned
+  ansible.builtin.set_fact:
+    shipyard_provisioned: "{{ shipyard_provisioned | default([]) + [entry] }}"
+  vars:
+    entry:
+      name: "{{ item.name }}"
+      hostname: "{{ item.name | shipyard_hostname(shipyard_project, shipyard_env) }}"
+      private_ip: "{{ item.private_ip }}"
+      public_ip: "{{ item.address if item.address is match('^[0-9.]+$|.*:') else none }}"
+      volume_device: "{{ item.volume_device | default(none) }}"
+  loop: "{{ shipyard_servers_valid }}"
+  loop_control:
+    label: "{{ item.name }}"

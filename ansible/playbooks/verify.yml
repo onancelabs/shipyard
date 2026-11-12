@@ -1,0 +1,45 @@
+- name: Check the environment from outside
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - shipyard_defaults
+  tasks:
+    - name: Probe SSH and web ports on every public address from this machine
+      ansible.builtin.command: nc -z -w 5 {{ hostvars[item.0].shipyard_public_ip }} {{ item.1 }}
+      loop: "{{ groups['shipyard_servers'] | select('in', hostvars) | product(['22', '80', '443']) | list }}"
+      when: hostvars[item.0].shipyard_public_ip
+      register: verify_ports
+      changed_when: false
+      failed_when: false
+      loop_control:
+        label: "{{ item.0 }}:{{ item.1 }}"
+
+    - name: Report open ports
+      ansible.builtin.assert:
+        that: open | length == 0
+        fail_msg: "Reachable from this machine, which isn't Cloudflare: {{ open | join(', ') }}"
+        success_msg: Port 22 is closed everywhere, and 80/443 refuse anyone but Cloudflare.
+      vars:
+        open: "{{ verify_ports.results | selectattr('rc', 'defined') | selectattr('rc', 'equalto', 0) | map(attribute='item') | map('join', ':') | list }}"
+
+- name: Check the environment from inside
+  hosts: shipyard_servers
+  gather_facts: false
+  roles:
+    - shipyard_defaults
+  tasks:
+    - name: Answer over the tailnet
+      ansible.builtin.ping:
+
+    - name: Reach every other server's private address
+      ansible.builtin.command: ping -c 1 -W 2 {{ hostvars[item].shipyard_private_ip }}
+      loop: "{{ groups['shipyard_servers'] | difference([inventory_hostname]) }}"
+      changed_when: false
+
+    - name: Check the data volume is mounted
+      when: shipyard_volume_device
+      ansible.builtin.shell: >-
+        test "$(findmnt -n -o SOURCE --mountpoint {{ shipyard_volume_mount }})" = "$(readlink -f {{ shipyard_volume_device }})"
+        || { echo "{{ shipyard_volume_device }} isn't mounted at {{ shipyard_volume_mount }}"; exit 1; }
+      changed_when: false

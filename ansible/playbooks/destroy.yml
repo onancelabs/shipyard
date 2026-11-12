@@ -1,0 +1,16 @@
+- name: Destroy the environment's servers
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - shipyard_defaults
+  tasks:
+    - name: Tear down with {{ shipyard_provider }}
+      ansible.builtin.include_role:
+        name: provision_{{ shipyard_provider }}
+        tasks_from: destroy
+
+    - name: Forget the servers
+      ansible.builtin.file:
+        path: "{{ inventory_dir }}/servers.yml"
+        state: absent

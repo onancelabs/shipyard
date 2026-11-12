@@ -1,0 +1,5 @@
+servers:
+  api:
+    hosts: [example-dev-main]
+proxy:
+  host: api.example-dev.com

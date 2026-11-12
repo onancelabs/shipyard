@@ -1,0 +1,27 @@
+#!/usr/sbin/nft -f
+# Only Shipyard's own table is replaced, so Docker's rules survive a reload.
+table inet shipyard
+delete table inet shipyard
+
+table inet shipyard {
+	chain input {
+		type filter hook input priority filter; policy drop;
+		iif "lo" accept
+		iifname "tailscale0" accept
+		ct state established,related accept
+		ct state invalid drop
+		meta l4proto ipv6-icmp accept
+		udp dport 68 accept
+{% for rule in rules %}
+{% set v4 = rule.sources | reject('search', ':') | list %}
+{% set v6 = rule.sources | select('search', ':') | list %}
+{% set match = 'meta l4proto icmp' if rule.protocol == 'icmp' else rule.protocol ~ ' dport ' ~ rule.ports %}
+{% if v4 %}
+		ip saddr { {{ v4 | join(', ') }} } {{ match }} accept
+{% endif %}
+{% if v6 and rule.protocol != 'icmp' %}
+		ip6 saddr { {{ v6 | join(', ') }} } {{ match }} accept
+{% endif %}
+{% endfor %}
+	}
+}

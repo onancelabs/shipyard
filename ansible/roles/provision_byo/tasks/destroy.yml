@@ -1,0 +1,3 @@
+- name: Refuse to destroy machines Shipyard didn't create
+  ansible.builtin.fail:
+    msg: byo doesn't own these machines, so there's nothing to destroy. Remove servers.yml to forget them.

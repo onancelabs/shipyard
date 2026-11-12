@@ -1,0 +1,5 @@
+servers:
+  api:
+    hosts: [example-prod-app]
+proxy:
+  host: api.example.com

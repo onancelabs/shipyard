@@ -1,0 +1,5 @@
+servers:
+  web:
+    hosts: [example-dev-main]
+proxy:
+  host: web.example-dev.com

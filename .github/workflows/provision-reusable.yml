@@ -1,0 +1,36 @@
+name: provision (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: provision-${{ inputs.environment }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: tailscale/github-action@064b10558093f38325e838ddea35486bdc6b1d5c # v4.4.0
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:${{ vars.SHIPYARD_PROJECT }}-ci-${{ inputs.environment }}
+      - run: make install
+      - name: Write the vault password
+        env:
+          VAULT_PASSWORD: ${{ secrets.VAULT_PASSWORD }}
+        run: printf '%s' "$VAULT_PASSWORD" > ansible/.vault_pass
+      - run: make up ENV=${{ inputs.environment }} VAULT="--vault-password-file .vault_pass"
+      - name: Remove the vault password
+        if: always()
+        run: rm -f ansible/.vault_pass

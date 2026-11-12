@@ -1,0 +1,6 @@
+galaxy_info:
+  author: onancelabs
+  description: Bring-your-own-servers provider for Shipyard
+  license: MIT
+  min_ansible_version: "2.19"
+dependencies: []

@@ -1,0 +1,11 @@
+name: provision prod
+
+on:
+  workflow_dispatch:
+
+jobs:
+  provision:
+    uses: ./.github/workflows/provision-reusable.yml
+    with:
+      environment: prod
+    secrets: inherit

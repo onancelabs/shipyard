@@ -1,0 +1,27 @@
+shipyard_project: example
+shipyard_env: prod
+shipyard_provider: digitalocean
+shipyard_exposure: public
+shipyard_region: nyc3
+shipyard_network_cidr: 10.20.0.0/16
+shipyard_domain: example.com
+shipyard_acme_email: ops@example.com
+
+# Apps and data on separate servers. Postgres and Redis keep their data on the block volume.
+shipyard_servers:
+  - name: app
+    roles: [proxy, app]
+    size: s-2vcpu-4gb
+  - name: data
+    roles: [data]
+    size: s-2vcpu-4gb
+    volume_gb: 20
+
+data_postgres_user: app
+data_postgres_db: app
+
+backups_r2_bucket: example-backups
+backups_r2_endpoint: https://<account-id>.r2.cloudflarestorage.com
+backups_databases:
+  - db: app
+    prefix: prod/app
