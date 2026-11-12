@@ -1,0 +1,25 @@
+- name: Check the provider's output
+  ansible.builtin.set_fact:
+    shipyard_provisioned_valid: >-
+      {{ shipyard_provisioned | shipyard_validate_provisioned(shipyard_servers_valid, shipyard_project, shipyard_env) }}
+
+- name: Write servers.yml
+  ansible.builtin.template:
+    src: servers.yml.j2
+    dest: "{{ inventory_dir }}/servers.yml"
+    mode: "0644"
+
+- name: Add the servers to this run
+  ansible.builtin.add_host:
+    name: "{{ item.hostname }}"
+    groups: "{{ ['shipyard_servers'] + (item.roles | map('regex_replace', '^', 'role_') | list) }}"
+    ansible_host: "{{ item.hostname }}"
+    ansible_user: root
+    shipyard_private_ip: "{{ item.private_ip }}"
+    shipyard_public_ip: "{{ item.public_ip }}"
+    shipyard_volume_device: "{{ item.volume_device }}"
+    shipyard_roles: "{{ item.roles }}"
+  loop: "{{ shipyard_provisioned_valid }}"
+  loop_control:
+    label: "{{ item.hostname }}"
+  changed_when: false

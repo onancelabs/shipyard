@@ -1,0 +1,12 @@
+# Shared defaults every play loads first. Override any of them in the environment's vars.yml.
+shipyard_exposure: public
+shipyard_dns_names: ["@", "*"]
+shipyard_load_balancer: false
+shipyard_tunnel: false
+shipyard_observability: false
+shipyard_dir: /opt/{{ shipyard_project }}
+shipyard_docker_network: "{{ shipyard_project }}"
+shipyard_kamal_proxy_port: 8080
+shipyard_volume_mount: /mnt/{{ shipyard_project }}-data
+shipyard_tailscale_tag: tag:{{ shipyard_project }}-{{ shipyard_env }}
+shipyard_debug: false

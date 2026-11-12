@@ -1,0 +1,7 @@
+profile: basic
+exclude_paths:
+  - collections/
+  - "**/vault.yml"
+skip_list:
+  # Shipyard shares one shipyard_ namespace across roles, which is its contract.
+  - var-naming[no-role-prefix]

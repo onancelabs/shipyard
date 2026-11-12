@@ -1,0 +1,36 @@
+- name: Validate the server list
+  ansible.builtin.set_fact:
+    shipyard_servers_valid: "{{ shipyard_servers | shipyard_validate_servers(shipyard_provider, shipyard_load_balancer) }}"
+
+- name: Validate the data passwords
+  when: shipyard_servers_valid | selectattr('roles', 'contains', 'data') | list | length > 0
+  no_log: true
+  ansible.builtin.assert:
+    that:
+      - vault_postgres_password | shipyard_validate_secret('vault_postgres_password') | length > 0
+      - vault_redis_password | shipyard_validate_secret('vault_redis_password') | length > 0
+    quiet: true
+
+- name: Load Cloudflare's IP ranges
+  when: shipyard_exposure == 'public' or shipyard_load_balancer
+  ansible.builtin.include_role:
+    name: cloudflare_ranges
+
+- name: Work out each server's firewall rules
+  ansible.builtin.set_fact:
+    shipyard_firewall_by_server: >-
+      {{ shipyard_firewall_by_server | default({}) | combine({
+           (item.name | shipyard_hostname(shipyard_project, shipyard_env)):
+             item | shipyard_firewall_rules(shipyard_servers_valid, shipyard_exposure,
+               shipyard_cloudflare_ips | default([]), shipyard_network_cidr, shipyard_load_balancer)
+         }) }}
+  loop: "{{ shipyard_servers_valid }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Provision with {{ shipyard_provider }}
+  ansible.builtin.include_role:
+    name: provision_{{ shipyard_provider }}
+
+- name: Write the inventory
+  ansible.builtin.include_tasks: write_inventory.yml

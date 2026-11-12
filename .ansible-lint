@@ -1,7 +1,0 @@
-profile: basic
-exclude_paths:
-  - .venv/
-  - ansible/collections/
-  - .github/
-  - "**/vault.yml"
-  - examples/

@@ -1,0 +1,7 @@
+- name: Provision the environment's servers
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - shipyard_defaults
+    - provider_contract

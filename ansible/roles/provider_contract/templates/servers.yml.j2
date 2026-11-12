@@ -1,0 +1,25 @@
+# Written by make provision. Don't edit by hand.
+all:
+  children:
+    shipyard_servers:
+      vars:
+        ansible_user: root
+      hosts:
+{% for s in shipyard_provisioned_valid %}
+        {{ s.hostname }}:
+          ansible_host: {{ s.hostname }}
+          shipyard_private_ip: {{ s.private_ip }}
+          shipyard_public_ip: {{ s.public_ip | default(none) | to_json }}
+          shipyard_volume_device: {{ s.volume_device | default(none) | to_json }}
+          shipyard_roles: {{ s.roles | to_json }}
+{% endfor %}
+{% for role in ['proxy', 'app', 'data', 'mon'] %}
+{% set members = shipyard_provisioned_valid | selectattr('roles', 'contains', role) | list %}
+{% if members %}
+    role_{{ role }}:
+      hosts:
+{% for s in members %}
+        {{ s.hostname }}: {}
+{% endfor %}
+{% endif %}
+{% endfor %}

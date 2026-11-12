@@ -1,0 +1,42 @@
+# Mints one single-use key per hostname in tailscale_key_hostnames into shipyard_tailscale_keys.
+- name: Get a Tailscale API token
+  when: tailscale_key_hostnames | length > 0
+  ansible.builtin.uri:
+    url: https://api.tailscale.com/api/v2/oauth/token
+    method: POST
+    body_format: form-urlencoded
+    body:
+      client_id: "{{ vault_tailscale_oauth_client_id }}"
+      client_secret: "{{ vault_tailscale_oauth_client_secret }}"
+    return_content: true
+  register: tailscale_token
+  no_log: "{{ not shipyard_debug }}"
+
+- name: Mint a single-use key per new server
+  ansible.builtin.uri:
+    url: https://api.tailscale.com/api/v2/tailnet/-/keys
+    method: POST
+    headers:
+      Authorization: Bearer {{ tailscale_token.json.access_token }}
+    body_format: json
+    body:
+      description: "{{ item }}"
+      expirySeconds: 1800
+      capabilities:
+        devices:
+          create:
+            reusable: false
+            ephemeral: false
+            preauthorized: true
+            tags: ["{{ shipyard_tailscale_tag }}"]
+    status_code: [200]
+  loop: "{{ tailscale_key_hostnames }}"
+  register: tailscale_minted
+  no_log: "{{ not shipyard_debug }}"
+
+- name: Collect the keys
+  ansible.builtin.set_fact:
+    shipyard_tailscale_keys: "{{ dict(minted | map(attribute='item') | zip(minted | map(attribute='json') | map(attribute='key'))) }}"
+  vars:
+    minted: "{{ tailscale_minted.results | default([]) }}"
+  no_log: "{{ not shipyard_debug }}"

@@ -1,0 +1,36 @@
+- name: Find the environment's droplets
+  digitalocean.cloud.droplets_info:
+    token: "{{ vault_digitalocean_token }}"
+    tag_name: "{{ do_name }}"
+  register: do_droplets
+
+- name: Delete firewalls
+  digitalocean.cloud.firewall:
+    token: "{{ vault_digitalocean_token }}"
+    name: "{{ item.name }}"
+    state: absent
+  loop: "{{ do_droplets.droplets }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Delete droplets
+  digitalocean.cloud.droplet:
+    token: "{{ vault_digitalocean_token }}"
+    name: "{{ item.name }}"
+    region: "{{ shipyard_region }}"
+    unique_name: true
+    state: absent
+  loop: "{{ do_droplets.droplets }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Delete volumes when asked
+  when: destroy_volumes | default(false) | bool
+  digitalocean.cloud.volume:
+    token: "{{ vault_digitalocean_token }}"
+    name: "{{ item.name }}"
+    region: "{{ shipyard_region }}"
+    state: absent
+  loop: "{{ do_droplets.droplets }}"
+  loop_control:
+    label: "{{ item.name }}"

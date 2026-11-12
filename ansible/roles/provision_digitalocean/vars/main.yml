@@ -1,0 +1,6 @@
+do_name: "{{ shipyard_project }}-{{ shipyard_env }}"
+do_image: ubuntu-24-04-x64
+do_outbound_rules:
+  - {protocol: tcp, ports: "0", destinations: {addresses: ["0.0.0.0/0", "::/0"]}}
+  - {protocol: udp, ports: "0", destinations: {addresses: ["0.0.0.0/0", "::/0"]}}
+  - {protocol: icmp, destinations: {addresses: ["0.0.0.0/0", "::/0"]}}

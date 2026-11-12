@@ -15,7 +15,7 @@ install:
 
 lint:
 	uv run yamllint .
-	uv run ansible-lint ansible
+	cd ansible && uv run ansible-lint
 	uv run ruff check .
 	uv run ruff format --check .
 

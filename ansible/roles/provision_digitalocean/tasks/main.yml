@@ -1,0 +1,122 @@
+- name: Create the VPC
+  digitalocean.cloud.vpc:
+    token: "{{ vault_digitalocean_token }}"
+    name: "{{ do_name }}"
+    region: "{{ shipyard_region }}"
+    ip_range: "{{ shipyard_network_cidr }}"
+  register: do_vpc
+
+- name: Find the environment's droplets
+  digitalocean.cloud.droplets_info:
+    token: "{{ vault_digitalocean_token }}"
+    tag_name: "{{ do_name }}"
+  register: do_existing
+
+- name: Work out which servers are missing
+  ansible.builtin.set_fact:
+    do_missing: >-
+      {{ shipyard_servers_valid | map(attribute='name')
+         | map('shipyard_hostname', shipyard_project, shipyard_env)
+         | difference(do_existing.droplets | map(attribute='name')) }}
+
+- name: Mint Tailscale keys for missing servers only
+  ansible.builtin.include_role:
+    name: tailscale_key
+  vars:
+    tailscale_key_hostnames: "{{ do_missing }}"
+
+- name: Create missing droplets
+  digitalocean.cloud.droplet:
+    token: "{{ vault_digitalocean_token }}"
+    name: "{{ hostname }}"
+    unique_name: true
+    region: "{{ shipyard_region }}"
+    size: "{{ item.size }}"
+    image: "{{ do_image }}"
+    vpc_uuid: "{{ do_vpc.vpc.id }}"
+    monitoring: true
+    tags: "{{ [do_name] + (item.roles | map('regex_replace', '^', 'role-') | list) }}"
+    user_data: "{{ lookup('ansible.builtin.template', role_path ~ '/../provider_contract/templates/cloud-init.sh.j2',
+      template_vars={'hostname': hostname, 'tailscale_key': shipyard_tailscale_keys[hostname]}) }}"
+  vars:
+    hostname: "{{ item.name | shipyard_hostname(shipyard_project, shipyard_env) }}"
+  loop: "{{ shipyard_servers_valid }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: hostname in do_missing
+  no_log: "{{ not shipyard_debug }}"
+
+- name: Create volumes
+  digitalocean.cloud.volume:
+    token: "{{ vault_digitalocean_token }}"
+    name: "{{ item.name | shipyard_hostname(shipyard_project, shipyard_env) }}"
+    region: "{{ shipyard_region }}"
+    size_gigabytes: "{{ item.volume_gb }}"
+    filesystem_type: ext4
+  loop: "{{ shipyard_servers_valid | selectattr('volume_gb') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: do_volumes
+
+- name: Attach volumes that aren't attached yet
+  digitalocean.cloud.volume_action:
+    token: "{{ vault_digitalocean_token }}"
+    volume_name: "{{ item.volume.name }}"
+    droplet_name: "{{ item.volume.name }}"
+    region: "{{ shipyard_region }}"
+  loop: "{{ do_volumes.results }}"
+  loop_control:
+    label: "{{ item.volume.name }}"
+  when: item.volume.droplet_ids | default([]) | length == 0
+
+- name: Reload the droplets with their addresses
+  digitalocean.cloud.droplets_info:
+    token: "{{ vault_digitalocean_token }}"
+    tag_name: "{{ do_name }}"
+  register: do_droplets
+
+- name: Read the current firewalls
+  digitalocean.cloud.firewalls_info:
+    token: "{{ vault_digitalocean_token }}"
+  register: do_firewalls
+
+- name: Delete firewalls whose rules or droplet changed
+  digitalocean.cloud.firewall:
+    token: "{{ vault_digitalocean_token }}"
+    name: "{{ item.name }}"
+    state: absent
+  vars:
+    droplet_ids: "{{ do_droplets.droplets | selectattr('name', 'equalto', item.name) | map(attribute='id') | list }}"
+  loop: "{{ do_firewalls.firewalls | selectattr('name', 'in', shipyard_firewall_by_server.keys() | list) | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: >-
+    not (item.inbound_rules | do_rules_match(shipyard_firewall_by_server[item.name] | do_inbound_rules))
+    or (item.droplet_ids | default([]) | sort) != (droplet_ids | sort)
+
+- name: Create firewalls
+  digitalocean.cloud.firewall:
+    token: "{{ vault_digitalocean_token }}"
+    name: "{{ item.key }}"
+    droplet_ids: "{{ do_droplets.droplets | selectattr('name', 'equalto', item.key) | map(attribute='id') | list }}"
+    inbound_rules: "{{ item.value | do_inbound_rules }}"
+    outbound_rules: "{{ do_outbound_rules }}"
+  loop: "{{ shipyard_firewall_by_server | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Report what was provisioned
+  ansible.builtin.set_fact:
+    shipyard_provisioned: "{{ shipyard_provisioned | default([]) + [entry] }}"
+  vars:
+    hostname: "{{ item.name | shipyard_hostname(shipyard_project, shipyard_env) }}"
+    droplet: "{{ do_droplets.droplets | selectattr('name', 'equalto', hostname) | first }}"
+    entry:
+      name: "{{ item.name }}"
+      hostname: "{{ hostname }}"
+      private_ip: "{{ droplet.networks.v4 | selectattr('type', 'equalto', 'private') | map(attribute='ip_address') | first }}"
+      public_ip: "{{ droplet.networks.v4 | selectattr('type', 'equalto', 'public') | map(attribute='ip_address') | first | default(none) }}"
+      volume_device: "{{ ('/dev/disk/by-id/scsi-0DO_Volume_' ~ hostname) if item.volume_gb else none }}"
+  loop: "{{ shipyard_servers_valid }}"
+  loop_control:
+    label: "{{ item.name }}"

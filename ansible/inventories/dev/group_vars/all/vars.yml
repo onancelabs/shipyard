@@ -1,0 +1,25 @@
+shipyard_project: example
+shipyard_env: dev
+shipyard_provider: digitalocean
+# public: Cloudflare-proxied, 80/443 open to Cloudflare only. private: tailnet only.
+shipyard_exposure: public
+shipyard_region: lon1
+shipyard_network_cidr: 10.10.0.0/16
+shipyard_domain: example-dev.com
+shipyard_acme_email: ops@example-dev.com
+
+# Sizes are the provider's own names. An API, two server-rendered apps, Postgres and Redis fit in 4 GB.
+shipyard_servers:
+  - name: main
+    roles: [proxy, app, data]
+    size: s-2vcpu-4gb
+
+data_postgres_user: app
+data_postgres_db: app
+
+# Leave backups_r2_bucket empty to skip backups.
+backups_r2_bucket: ""
+backups_r2_endpoint: https://<account-id>.r2.cloudflarestorage.com
+backups_databases:
+  - db: app
+    prefix: dev/app
