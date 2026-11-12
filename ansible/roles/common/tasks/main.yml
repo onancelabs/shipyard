@@ -1,0 +1,70 @@
+- name: Install base packages
+  ansible.builtin.apt:
+    name: "{{ common_packages }}"
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Turn on unattended security upgrades with a nightly reboot window
+  ansible.builtin.template:
+    src: 52-shipyard-upgrades.j2
+    dest: /etc/apt/apt.conf.d/52-shipyard-upgrades
+    mode: "0644"
+
+- name: Enable periodic apt runs
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+    mode: "0644"
+
+- name: Keep time in sync
+  ansible.builtin.systemd_service:
+    name: systemd-timesyncd
+    enabled: true
+    state: started
+
+- name: Create the swap file
+  ansible.builtin.command: fallocate -l {{ common_swap_size_mb }}M /swapfile
+  args:
+    creates: /swapfile
+  register: common_swap_created
+
+- name: Format and enable swap
+  when: common_swap_created is changed
+  block:
+    - name: Restrict the swap file
+      ansible.builtin.file:
+        path: /swapfile
+        mode: "0600"
+    - name: Format swap
+      ansible.builtin.command: mkswap /swapfile
+      changed_when: true
+    - name: Enable swap
+      ansible.builtin.command: swapon /swapfile
+      changed_when: true
+
+- name: Mount swap at boot
+  ansible.posix.mount:
+    src: /swapfile
+    path: none
+    fstype: swap
+    opts: sw
+    state: present
+
+- name: Tune the kernel
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/99-{{ shipyard_project }}.conf
+    content: |
+      vm.swappiness = {{ common_swappiness }}
+    mode: "0644"
+  notify: Reload sysctl
+
+- name: Read this server's tailnet address
+  ansible.builtin.command: tailscale ip -4
+  register: common_tailscale_ip
+  changed_when: false
+
+- name: Remember the tailnet address
+  ansible.builtin.set_fact:
+    shipyard_tailscale_ip: "{{ common_tailscale_ip.stdout_lines | first }}"

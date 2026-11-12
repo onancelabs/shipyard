@@ -1,0 +1,4 @@
+requirepass {{ vault_redis_password | shipyard_validate_secret('vault_redis_password') }}
+appendonly yes
+maxmemory {{ data_redis_maxmemory }}
+maxmemory-policy {{ data_redis_policy }}

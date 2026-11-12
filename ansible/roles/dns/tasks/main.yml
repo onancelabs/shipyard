@@ -1,0 +1,20 @@
+# Runs during configure, so a record never points at a server that isn't ready yet.
+- name: Work out the record target
+  vars:
+    proxy: "{{ hostvars[groups['role_proxy'] | first] }}"
+  ansible.builtin.set_fact:
+    dns_content: >-
+      {{ shipyard_lb_ip | default(proxy.shipyard_public_ip, true) if shipyard_exposure == 'public' else proxy.shipyard_tailscale_ip }}
+    dns_proxied: "{{ shipyard_exposure == 'public' }}"
+
+- name: Publish the environment's records
+  community.general.cloudflare_dns:
+    api_token: "{{ vault_cloudflare_token }}"
+    zone: "{{ shipyard_domain }}"
+    record: "{{ item }}"
+    type: A
+    value: "{{ dns_content }}"
+    proxied: "{{ dns_proxied }}"
+    ttl: 1
+    solo: true
+  loop: "{{ shipyard_dns_names }}"

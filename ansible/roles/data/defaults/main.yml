@@ -1,0 +1,14 @@
+data_postgres_enabled: true
+data_postgres_image: postgres:17.11
+data_postgres_user: app
+data_postgres_db: app
+data_postgres_mem_limit: 640m
+data_postgres_extensions: []
+data_postgres_extra_databases: []
+data_redis_enabled: true
+data_redis_image: redis:7.4.12-alpine
+data_redis_maxmemory: 192mb
+# About twice maxmemory, because an AOF rewrite forks Redis and copies pages.
+data_redis_mem_limit: 384m
+# BullMQ loses queue keys under eviction. Use allkeys-lru only for a pure cache.
+data_redis_policy: noeviction

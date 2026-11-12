@@ -1,0 +1,8 @@
+backups_r2_bucket: ""
+backups_r2_endpoint: ""
+backups_databases: []
+backups_retention_days: 14
+backups_cron_minute: "17"
+backups_cron_hour: "3"
+backups_heartbeat_url: ""
+backups_aws_cli_image: amazon/aws-cli:2.40.1

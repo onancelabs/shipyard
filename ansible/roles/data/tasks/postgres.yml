@@ -1,0 +1,37 @@
+- name: Check the vault password still works
+  ansible.builtin.command: >-
+    docker exec -e PGPASSWORD={{ vault_postgres_password }} postgres
+    psql -h 127.0.0.1 -U {{ data_postgres_user }} -d {{ data_postgres_db }} -tAc 'select 1'
+  register: data_pg_auth
+  changed_when: false
+  failed_when: false
+  no_log: true
+
+# POSTGRES_PASSWORD only applies on first init, so a changed vault password needs ALTER ROLE.
+- name: Rotate the Postgres password
+  when: data_pg_auth.rc != 0
+  ansible.builtin.command: >-
+    docker exec postgres psql -U {{ data_postgres_user }} -d {{ data_postgres_db }}
+    -c "ALTER ROLE {{ data_postgres_user }} PASSWORD '{{ vault_postgres_password }}'"
+  changed_when: true
+  no_log: true
+
+- name: Create extensions as superuser
+  ansible.builtin.command: >-
+    docker exec postgres psql -U {{ data_postgres_user }} -d {{ data_postgres_db }}
+    -c 'CREATE EXTENSION IF NOT EXISTS "{{ item }}"'
+  loop: "{{ data_postgres_extensions }}"
+  register: data_pg_ext
+  changed_when: "'already exists' not in data_pg_ext.stderr"
+
+- name: Find existing databases
+  ansible.builtin.command: >-
+    docker exec postgres psql -U {{ data_postgres_user }} -d {{ data_postgres_db }} -tAc 'select datname from pg_database'
+  register: data_pg_dbs
+  changed_when: false
+
+- name: Create extra databases
+  ansible.builtin.command: >-
+    docker exec postgres psql -U {{ data_postgres_user }} -d {{ data_postgres_db }} -c 'CREATE DATABASE "{{ item }}"'
+  loop: "{{ data_postgres_extra_databases | difference(data_pg_dbs.stdout_lines) }}"
+  changed_when: true

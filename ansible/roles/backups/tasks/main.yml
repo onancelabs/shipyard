@@ -1,0 +1,42 @@
+- name: Create the backups directory
+  ansible.builtin.file:
+    path: "{{ shipyard_dir }}/backups"
+    state: directory
+    mode: "0750"
+
+- name: Write the R2 credentials
+  ansible.builtin.copy:
+    dest: "{{ shipyard_dir }}/backups/r2.env"
+    content: |
+      AWS_ACCESS_KEY_ID={{ vault_r2_access_key_id }}
+      AWS_SECRET_ACCESS_KEY={{ vault_r2_secret_access_key }}
+      AWS_DEFAULT_REGION=auto
+    mode: "0600"
+  no_log: true
+
+- name: Write the backup and restore scripts
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ shipyard_dir }}/backups/{{ item }}"
+    mode: "0750"
+  loop: [pg-backup.sh, pg-restore.sh]
+
+- name: Schedule the nightly backup
+  ansible.builtin.cron:
+    name: "{{ shipyard_project }}-pg-backup"
+    minute: "{{ backups_cron_minute }}"
+    hour: "{{ backups_cron_hour }}"
+    job: "{{ shipyard_dir }}/backups/pg-backup.sh >> /var/log/{{ shipyard_project }}-pg-backup.log 2>&1"
+
+- name: Rotate the backup log
+  ansible.builtin.copy:
+    dest: /etc/logrotate.d/{{ shipyard_project }}-pg-backup
+    content: |
+      /var/log/{{ shipyard_project }}-pg-backup.log {
+        weekly
+        rotate 8
+        compress
+        missingok
+        notifempty
+      }
+    mode: "0644"

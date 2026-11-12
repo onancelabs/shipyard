@@ -1,0 +1,66 @@
+- name: Work out where data lives
+  ansible.builtin.set_fact:
+    data_root: "{{ shipyard_volume_mount if shipyard_volume_device else shipyard_dir ~ '/data' }}"
+    # Publish on the private IP only when apps on other servers need to reach the data.
+    data_publish: "{{ groups['role_app'] | default([]) | difference([inventory_hostname]) | length > 0 }}"
+
+- name: Prepare the block volume
+  when: shipyard_volume_device
+  block:
+    - name: Make sure the volume has a filesystem
+      community.general.filesystem:
+        dev: "{{ shipyard_volume_device }}"
+        fstype: ext4
+    - name: Mount the volume
+      ansible.posix.mount:
+        src: "{{ shipyard_volume_device }}"
+        path: "{{ shipyard_volume_mount }}"
+        fstype: ext4
+        opts: defaults,nofail,discard
+        state: mounted
+
+- name: Create the data directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner | default('root') }}"
+    group: "{{ item.owner | default('root') }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: "{{ shipyard_dir }}/data", mode: "0750"}
+    - {path: "{{ shipyard_dir }}/data/redis", mode: "0750"}
+    - {path: "{{ data_root }}/postgres", owner: "999", mode: "0700"}
+    - {path: "{{ data_root }}/redis", owner: "999", mode: "0700"}
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Write the Postgres env file
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ shipyard_dir }}/data/.env"
+    mode: "0600"
+  no_log: true
+
+# The password sits in the config file so it never shows in docker inspect or ps.
+- name: Write the Redis config
+  ansible.builtin.template:
+    src: redis.conf.j2
+    dest: "{{ shipyard_dir }}/data/redis/redis.conf"
+    mode: "0644"
+  no_log: true
+
+- name: Write the compose file
+  ansible.builtin.template:
+    src: compose.yml.j2
+    dest: "{{ shipyard_dir }}/data/compose.yml"
+    mode: "0644"
+
+- name: Start Postgres and Redis
+  community.docker.docker_compose_v2:
+    project_src: "{{ shipyard_dir }}/data"
+    state: present
+    wait: true
+
+- name: Set up Postgres
+  when: data_postgres_enabled
+  ansible.builtin.include_tasks: postgres.yml

@@ -1,0 +1,107 @@
+- name: Create Docker's config and key directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop: [/etc/apt/keyrings, /etc/docker]
+
+- name: Add Docker's signing key
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    mode: "0644"
+
+- name: Add Docker's apt repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch={{ 'arm64' if ansible_facts.architecture == 'aarch64' else 'amd64' }} signed-by=/etc/apt/keyrings/docker.asc]
+      https://download.docker.com/linux/ubuntu {{ ansible_facts.distribution_release }} stable
+    filename: docker
+    state: present
+
+- name: Check the current storage driver
+  ansible.builtin.shell: |
+    set -o pipefail
+    command -v docker >/dev/null || { echo "absent"; exit 0; }
+    driver=$(docker info --format '{{ '{{' }}.Driver{{ '}}' }}')
+    count=$(docker ps -aq | wc -l)
+    echo "$driver $count"
+  args:
+    executable: /bin/bash
+  register: docker_state
+  changed_when: false
+  failed_when: docker_state.rc != 0 or docker_state.stdout | length == 0
+
+# Switching image stores orphans every container in the old one, so only do it on an empty box.
+- name: Refuse to switch storage on a box with containers
+  vars:
+    state: "{{ docker_state.stdout.split() }}"
+  ansible.builtin.assert:
+    that: >-
+      state[0] in ['absent', 'overlay2'] or state[1] | int == 0 or docker_migrate_to_overlay2 | bool
+    fail_msg: >-
+      Docker on {{ inventory_hostname }} uses the {{ state[0] }} store and has {{ state[1] }} containers.
+      Switching to overlay2 would orphan them. Re-run with -e docker_migrate_to_overlay2=true to accept that.
+    quiet: true
+
+- name: Configure the Docker daemon
+  ansible.builtin.template:
+    src: daemon.json.j2
+    dest: /etc/docker/daemon.json
+    mode: "0644"
+  notify: Restart Docker
+
+- name: Install Docker
+  ansible.builtin.apt:
+    name:
+      - "docker-ce{{ '=' ~ docker_version if docker_version else '' }}"
+      - "docker-ce-cli{{ '=' ~ docker_version if docker_version else '' }}"
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    update_cache: true
+
+- name: Hold Docker at the installed version
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop: [docker-ce, docker-ce-cli]
+
+- name: Apply daemon changes now
+  ansible.builtin.meta: flush_handlers
+
+- name: Create the shared network apps and data services join
+  community.docker.docker_network:
+    name: "{{ shipyard_docker_network }}"
+
+- name: Install the weekly prune
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/{{ item.name }}
+    content: "{{ item.content }}"
+    mode: "0644"
+  loop:
+    - name: docker-prune.service
+      content: |
+        [Unit]
+        Description=Remove unused Docker images and containers older than a week
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/bin/docker system prune -af --filter until=168h
+    - name: docker-prune.timer
+      content: |
+        [Unit]
+        Description=Weekly Docker prune
+        [Timer]
+        OnCalendar=weekly
+        Persistent=true
+        [Install]
+        WantedBy=timers.target
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Enable the prune timer
+  ansible.builtin.systemd_service:
+    name: docker-prune.timer
+    enabled: true
+    state: started
+    daemon_reload: true

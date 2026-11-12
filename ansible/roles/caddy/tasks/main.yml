@@ -1,0 +1,39 @@
+- name: Load Cloudflare's ranges so Caddy trusts its forwarded client IPs
+  when: shipyard_exposure == 'public'
+  ansible.builtin.include_role:
+    name: cloudflare_ranges
+    apply:
+      delegate_to: localhost
+      run_once: true
+
+- name: Create Caddy's directories
+  ansible.builtin.file:
+    path: "{{ shipyard_dir }}/caddy/{{ item }}"
+    state: directory
+    mode: "0750"
+  loop: [conf, data, config]
+
+- name: Write the Caddyfile
+  ansible.builtin.template:
+    src: Caddyfile.j2
+    dest: "{{ shipyard_dir }}/caddy/conf/Caddyfile"
+    mode: "0644"
+  notify: Reload Caddy
+
+- name: Write Caddy's Cloudflare token
+  ansible.builtin.copy:
+    dest: "{{ shipyard_dir }}/caddy/caddy.env"
+    content: "CLOUDFLARE_API_TOKEN={{ vault_cloudflare_token }}\n"
+    mode: "0600"
+  no_log: true
+
+- name: Write Caddy's compose file
+  ansible.builtin.template:
+    src: compose.yml.j2
+    dest: "{{ shipyard_dir }}/caddy/compose.yml"
+    mode: "0644"
+
+- name: Start Caddy
+  community.docker.docker_compose_v2:
+    project_src: "{{ shipyard_dir }}/caddy"
+    state: present

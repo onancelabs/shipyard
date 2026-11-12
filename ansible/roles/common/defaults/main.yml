@@ -1,0 +1,4 @@
+common_swap_size_mb: 2048
+common_swappiness: 10
+common_auto_reboot_time: "04:00"
+common_packages: [unattended-upgrades, ca-certificates, curl, gnupg, jq, python3-requests]

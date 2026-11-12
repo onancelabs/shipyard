@@ -1,0 +1,5 @@
+- name: Provision
+  ansible.builtin.import_playbook: provision.yml
+
+- name: Configure
+  ansible.builtin.import_playbook: configure.yml

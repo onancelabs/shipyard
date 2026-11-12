@@ -1,0 +1,6 @@
+# Empty installs the repository's current version, then apt holds it so upgrades are deliberate.
+docker_version: ""
+docker_dns: ["1.1.1.1", "8.8.8.8"]
+docker_log_max_size: 10m
+docker_log_max_file: "3"
+docker_migrate_to_overlay2: false

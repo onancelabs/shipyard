@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Usage: pg-restore.sh <db> [object-name]. Restores the newest dump for <db> unless an object is named.
+set -euo pipefail
+
+db="${1:?usage: pg-restore.sh <db> [object-name]}"
+dir="{{ shipyard_dir }}/backups"
+declare -A prefixes=({% for b in backups_databases %}[{{ b.db }}]="{{ b.prefix }}" {% endfor %})
+prefix="${prefixes[$db]:?$db isn't in backups_databases}"
+
+aws() {
+  docker run --rm --env-file "$dir/r2.env" -v "$dir/work:/work" {{ backups_aws_cli_image }} \
+    --endpoint-url "{{ backups_r2_endpoint }}" "$@"
+}
+
+mkdir -p "$dir/work"
+name="${2:-$(aws s3 ls "s3://{{ backups_r2_bucket }}/$prefix/" | sort | tail -1 | awk '{print $4}')}"
+[ -n "$name" ] || { echo "No dumps under $prefix"; exit 1; }
+aws s3 cp "s3://{{ backups_r2_bucket }}/$prefix/$name" "/work/$name" --only-show-errors
+docker exec -i postgres pg_restore -U {{ data_postgres_user }} -d "$db" --clean --if-exists < "$dir/work/$name"
+rm -f "$dir/work/$name"
+echo "Restored $db from $prefix/$name"

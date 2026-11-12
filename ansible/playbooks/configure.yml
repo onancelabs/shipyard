@@ -1,0 +1,36 @@
+- name: Configure the servers
+  hosts: shipyard_servers
+  gather_facts: false
+  any_errors_fatal: true
+  pre_tasks:
+    - name: Wait for the server on the tailnet
+      block:
+        - name: Wait up to five minutes for first boot
+          ansible.builtin.wait_for_connection:
+            timeout: 300
+      rescue:
+        - name: Explain the unreachable server
+          ansible.builtin.fail:
+            msg: >-
+              {{ inventory_hostname }} didn't answer over Tailscale. Check this machine is on the tailnet,
+              then see docs/runbooks/tailscale-join.md.
+    - name: Gather facts
+      ansible.builtin.setup:
+  roles:
+    - shipyard_defaults
+    - common
+    - docker
+    - role: caddy
+      when: "'proxy' in shipyard_roles"
+    - role: data
+      when: "'data' in shipyard_roles"
+    - role: backups
+      when: "'data' in shipyard_roles and backups_r2_bucket | default('') | length > 0"
+
+- name: Publish DNS
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - shipyard_defaults
+    - dns

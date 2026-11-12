@@ -1,0 +1,2 @@
+caddy_image: caddybuilds/caddy-cloudflare:2.11.9
+caddy_mem_limit: 256m

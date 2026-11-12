@@ -1,0 +1,44 @@
+name: {{ shipyard_project }}-data
+services:
+{% if data_postgres_enabled %}
+  postgres:
+    image: {{ data_postgres_image }}
+    container_name: postgres
+    restart: unless-stopped
+    env_file: .env
+    mem_limit: {{ data_postgres_mem_limit }}
+    volumes:
+      - {{ data_root }}/postgres:/var/lib/postgresql/data
+{% if data_publish %}
+    ports:
+      - "{{ shipyard_private_ip }}:5432:5432"
+{% endif %}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U {{ data_postgres_user }} -d {{ data_postgres_db }}"]
+      interval: 10s
+      retries: 6
+    networks: [shared]
+{% endif %}
+{% if data_redis_enabled %}
+  redis:
+    image: {{ data_redis_image }}
+    container_name: redis
+    restart: unless-stopped
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    mem_limit: {{ data_redis_mem_limit }}
+    volumes:
+      - ./redis:/usr/local/etc/redis:ro
+      - {{ data_root }}/redis:/data
+{% if data_publish %}
+    ports:
+      - "{{ shipyard_private_ip }}:6379:6379"
+{% endif %}
+    labels:
+      # A changed redis.conf must recreate the container, which compose won't do for a mounted file.
+      shipyard.config-hash: "{{ lookup('ansible.builtin.template', 'redis.conf.j2') | hash('sha1') }}"
+    networks: [shared]
+{% endif %}
+networks:
+  shared:
+    external: true
+    name: {{ shipyard_docker_network }}

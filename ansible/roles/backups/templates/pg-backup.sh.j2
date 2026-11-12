@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Dumps each database to R2, then deletes dumps older than {{ backups_retention_days }} days.
+set -uo pipefail
+
+dir="{{ shipyard_dir }}/backups"
+stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+cutoff="$(date -u -d '{{ backups_retention_days }} days ago' +%Y-%m-%d)"
+failed=0
+
+aws() {
+  docker run --rm --env-file "$dir/r2.env" -v "$dir/work:/work" {{ backups_aws_cli_image }} \
+    --endpoint-url "{{ backups_r2_endpoint }}" "$@"
+}
+
+mkdir -p "$dir/work"
+{% for b in backups_databases %}
+file="{{ b.db }}-$stamp.dump"
+if docker exec postgres pg_dump -U {{ data_postgres_user }} -Fc {{ b.db }} > "$dir/work/$file" \
+  && aws s3 cp "/work/$file" "s3://{{ backups_r2_bucket }}/{{ b.prefix }}/$file" --only-show-errors; then
+  echo "$(date -u) backed up {{ b.db }} to {{ b.prefix }}/$file"
+  aws s3 ls "s3://{{ backups_r2_bucket }}/{{ b.prefix }}/" | while read -r day _ _ name; do
+    if [[ "$day" < "$cutoff" ]]; then
+      aws s3 rm "s3://{{ backups_r2_bucket }}/{{ b.prefix }}/$name" --only-show-errors
+    fi
+  done
+else
+  echo "$(date -u) FAILED to back up {{ b.db }}"
+  failed=1
+fi
+rm -f "$dir/work/$file"
+{% endfor %}
+
+{% if backups_heartbeat_url %}
+[ "$failed" -eq 0 ] && curl -fsS -m 10 "{{ backups_heartbeat_url }}" >/dev/null
+{% endif %}
+exit "$failed"

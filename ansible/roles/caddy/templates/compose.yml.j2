@@ -1,0 +1,16 @@
+name: {{ shipyard_project }}-caddy
+services:
+  caddy:
+    image: {{ caddy_image }}
+    container_name: caddy
+    restart: unless-stopped
+    network_mode: host
+    env_file: caddy.env
+    mem_limit: {{ caddy_mem_limit }}
+    volumes:
+      # The directory, not the file, so a re-rendered Caddyfile reaches the container.
+      - ./conf:/etc/caddy:ro
+      - ./data:/data
+      - ./config:/config
+    labels:
+      shipyard.config-hash: "{{ lookup('ansible.builtin.template', 'compose-hash.j2') | hash('sha1') }}"

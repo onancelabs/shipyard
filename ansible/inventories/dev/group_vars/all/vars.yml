@@ -3,7 +3,7 @@ shipyard_env: dev
 shipyard_provider: digitalocean
 # public: Cloudflare-proxied, 80/443 open to Cloudflare only. private: tailnet only.
 shipyard_exposure: public
-shipyard_region: lon1
+shipyard_region: nyc3
 shipyard_network_cidr: 10.10.0.0/16
 shipyard_domain: example-dev.com
 shipyard_acme_email: ops@example-dev.com

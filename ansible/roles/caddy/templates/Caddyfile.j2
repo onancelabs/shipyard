@@ -1,0 +1,18 @@
+{
+	email {{ shipyard_acme_email }}
+	acme_dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+{% if shipyard_exposure == 'private' %}
+	default_bind {{ shipyard_tailscale_ip }}
+{% else %}
+	servers {
+		trusted_proxies static {{ shipyard_cloudflare_ips | join(' ') }}
+		client_ip_headers CF-Connecting-IP X-Forwarded-For
+	}
+{% endif %}
+}
+
+*.{{ shipyard_domain }}, {{ shipyard_domain }} {
+	reverse_proxy 127.0.0.1:{{ shipyard_kamal_proxy_port }} {
+		header_up Host {host}
+	}
+}
