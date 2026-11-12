@@ -28,9 +28,9 @@
   when: destroy_volumes | default(false) | bool
   digitalocean.cloud.volume:
     token: "{{ vault_digitalocean_token }}"
-    name: "{{ item.name }}"
+    name: "{{ item.name | shipyard_hostname(shipyard_project, shipyard_env) }}"
     region: "{{ shipyard_region }}"
     state: absent
-  loop: "{{ do_droplets.droplets }}"
+  loop: "{{ shipyard_servers | selectattr('volume_gb', 'defined') | selectattr('volume_gb') | list }}"
   loop_control:
     label: "{{ item.name }}"

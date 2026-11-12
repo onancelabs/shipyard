@@ -152,8 +152,10 @@ Each module is off until you turn it on in the environment's `vars.yml`.
 
 1. Edit `ansible/inventories/prod/group_vars/all/vars.yml`. Prod splits apps and data onto two servers, and the data server keeps Postgres and Redis on a block volume, so the data survives a rebuild of the server.
 2. Create prod's vault with `make vault-init ENV=prod`, using prod's own Tailscale client, Cloudflare token and passwords.
-3. Run `make up ENV=prod`, run it again for `changed=0`, then `make verify ENV=prod`.
-4. In prod, apps reach Postgres and Redis on the data server's private address, on ports 5432 and 6379. Only servers on the private network can connect.
+3. Run `make provision ENV=prod` to create the servers.
+4. The example ACL asks admins to log in again before SSH to prod, and Ansible can't show that prompt. Run `ssh root@<project>-prod-app` and `ssh root@<project>-prod-data` once, and complete the login in your browser.
+5. Run `make configure ENV=prod`, then `make up ENV=prod` for `changed=0`, then `make verify ENV=prod`.
+6. In prod, apps reach Postgres and Redis on the data server's private address, on ports 5432 and 6379. Only servers on the private network can connect.
 
 To run provisioning from GitHub Actions, create a GitHub environment per Shipyard environment with these secrets and variables:
 

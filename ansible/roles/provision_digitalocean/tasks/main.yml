@@ -6,6 +6,42 @@
     ip_range: "{{ shipyard_network_cidr }}"
   register: do_vpc
 
+# Each droplet carries a tag named after its hostname, and its firewall targets that tag.
+# Creating firewalls first means a new droplet is firewalled from its first boot.
+- name: Create the environment and per-server tags
+  digitalocean.cloud.tag:
+    token: "{{ vault_digitalocean_token }}"
+    name: "{{ item }}"
+  loop: "{{ [do_name] + (shipyard_firewall_by_server.keys() | list) }}"
+
+- name: Read the current firewalls
+  digitalocean.cloud.firewalls_info:
+    token: "{{ vault_digitalocean_token }}"
+  register: do_firewalls
+
+- name: Delete firewalls whose rules changed
+  digitalocean.cloud.firewall:
+    token: "{{ vault_digitalocean_token }}"
+    name: "{{ item.name }}"
+    state: absent
+  loop: "{{ do_firewalls.firewalls | selectattr('name', 'in', shipyard_firewall_by_server.keys() | list) | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: >-
+    not (item.inbound_rules | do_rules_match(shipyard_firewall_by_server[item.name] | do_inbound_rules))
+    or item.tags | default([]) != [item.name]
+
+- name: Create firewalls
+  digitalocean.cloud.firewall:
+    token: "{{ vault_digitalocean_token }}"
+    name: "{{ item.key }}"
+    tags: ["{{ item.key }}"]
+    inbound_rules: "{{ item.value | do_inbound_rules }}"
+    outbound_rules: "{{ do_outbound_rules }}"
+  loop: "{{ shipyard_firewall_by_server | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
 - name: Find the environment's droplets
   digitalocean.cloud.droplets_info:
     token: "{{ vault_digitalocean_token }}"
@@ -35,7 +71,7 @@
     image: "{{ do_image }}"
     vpc_uuid: "{{ do_vpc.vpc.id }}"
     monitoring: true
-    tags: "{{ [do_name] + (item.roles | map('regex_replace', '^', 'role-') | list) }}"
+    tags: "{{ [do_name, hostname] + (item.roles | map('regex_replace', '^', 'role-') | list) }}"
     user_data: "{{ lookup('ansible.builtin.template', role_path ~ '/../provider_contract/templates/cloud-init.sh.j2',
       template_vars={'hostname': hostname, 'tailscale_key': shipyard_tailscale_keys[hostname]}) }}"
   vars:
@@ -74,36 +110,6 @@
     token: "{{ vault_digitalocean_token }}"
     tag_name: "{{ do_name }}"
   register: do_droplets
-
-- name: Read the current firewalls
-  digitalocean.cloud.firewalls_info:
-    token: "{{ vault_digitalocean_token }}"
-  register: do_firewalls
-
-- name: Delete firewalls whose rules or droplet changed
-  digitalocean.cloud.firewall:
-    token: "{{ vault_digitalocean_token }}"
-    name: "{{ item.name }}"
-    state: absent
-  vars:
-    droplet_ids: "{{ do_droplets.droplets | selectattr('name', 'equalto', item.name) | map(attribute='id') | list }}"
-  loop: "{{ do_firewalls.firewalls | selectattr('name', 'in', shipyard_firewall_by_server.keys() | list) | list }}"
-  loop_control:
-    label: "{{ item.name }}"
-  when: >-
-    not (item.inbound_rules | do_rules_match(shipyard_firewall_by_server[item.name] | do_inbound_rules))
-    or (item.droplet_ids | default([]) | sort) != (droplet_ids | sort)
-
-- name: Create firewalls
-  digitalocean.cloud.firewall:
-    token: "{{ vault_digitalocean_token }}"
-    name: "{{ item.key }}"
-    droplet_ids: "{{ do_droplets.droplets | selectattr('name', 'equalto', item.key) | map(attribute='id') | list }}"
-    inbound_rules: "{{ item.value | do_inbound_rules }}"
-    outbound_rules: "{{ do_outbound_rules }}"
-  loop: "{{ shipyard_firewall_by_server | dict2items }}"
-  loop_control:
-    label: "{{ item.key }}"
 
 - name: Report what was provisioned
   ansible.builtin.set_fact:

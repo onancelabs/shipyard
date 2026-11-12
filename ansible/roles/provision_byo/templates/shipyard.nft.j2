@@ -4,6 +4,12 @@ table inet shipyard
 delete table inet shipyard
 
 table inet shipyard {
+	# Docker forwards published ports before the input chain, so kamal-proxy's are dropped here first.
+	chain prerouting {
+		type filter hook prerouting priority -150; policy accept;
+		iifname != { "lo", "tailscale0" } tcp dport { {{ shipyard_kamal_proxy_port }}, 8443, 9090 } drop
+	}
+
 	chain input {
 		type filter hook input priority filter; policy drop;
 		iif "lo" accept

@@ -7,8 +7,8 @@
   tasks:
     - name: Probe SSH and web ports on every public address from this machine
       ansible.builtin.command: nc -z -w 5 {{ hostvars[item.0].shipyard_public_ip }} {{ item.1 }}
-      loop: "{{ groups['shipyard_servers'] | select('in', hostvars) | product(['22', '80', '443']) | list }}"
-      when: hostvars[item.0].shipyard_public_ip
+      loop: "{{ groups['shipyard_servers'] | select('in', hostvars) | product(['22', '80', '443', '8080', '8443', '9090']) | list }}"
+      when: hostvars[item.0].shipyard_public_ip is truthy
       register: verify_ports
       changed_when: false
       failed_when: false
@@ -19,7 +19,7 @@
       ansible.builtin.assert:
         that: open | length == 0
         fail_msg: "Reachable from this machine, which isn't Cloudflare: {{ open | join(', ') }}"
-        success_msg: Port 22 is closed everywhere, and 80/443 refuse anyone but Cloudflare.
+        success_msg: Port 22 and kamal-proxy's ports are closed everywhere, and 80/443 refuse anyone but Cloudflare.
       vars:
         open: "{{ verify_ports.results | selectattr('rc', 'defined') | selectattr('rc', 'equalto', 0) | map(attribute='item') | map('join', ':') | list }}"
 
@@ -38,7 +38,7 @@
       changed_when: false
 
     - name: Check the data volume is mounted
-      when: shipyard_volume_device
+      when: shipyard_volume_device is truthy
       ansible.builtin.shell: >-
         test "$(findmnt -n -o SOURCE --mountpoint {{ shipyard_volume_mount }})" = "$(readlink -f {{ shipyard_volume_device }})"
         || { echo "{{ shipyard_volume_device }} isn't mounted at {{ shipyard_volume_mount }}"; exit 1; }

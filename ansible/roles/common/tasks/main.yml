@@ -57,6 +57,8 @@
     dest: /etc/sysctl.d/99-{{ shipyard_project }}.conf
     content: |
       vm.swappiness = {{ common_swappiness }}
+      # Lets containers publish on the tailnet address before tailscaled brings it up at boot.
+      net.ipv4.ip_nonlocal_bind = 1
     mode: "0644"
   notify: Reload sysctl
 

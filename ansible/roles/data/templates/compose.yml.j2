@@ -27,7 +27,7 @@ services:
     command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
     mem_limit: {{ data_redis_mem_limit }}
     volumes:
-      - ./redis:/usr/local/etc/redis:ro
+      - ./redis-conf:/usr/local/etc/redis:ro
       - {{ data_root }}/redis:/data
 {% if data_publish %}
     ports:

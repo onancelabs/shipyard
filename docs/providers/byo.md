@@ -36,7 +36,7 @@ The firewall replaces only its own `shipyard` table, so Docker's rules stay in p
 
 ## Things to know
 
-- **Ports Docker publishes skip the host firewall.** Docker forwards published ports before the host's input rules see them. Shipyard publishes Postgres and Redis on the private address only, so keep that address off the public internet.
+- **Ports Docker publishes skip the host's input rules.** Docker forwards published ports before the input chain sees them. Shipyard drops kamal-proxy's ports (8080, 8443 and 9090) earlier, in its own prerouting chain, unless they arrive over Tailscale. Postgres and Redis are published on the private address only, so keep that address off the public internet.
 - **Disable password logins yourself.** Shipyard doesn't change `sshd` on machines it didn't create.
 - **Destroy refuses.** Remove `servers.yml` to make Shipyard forget the machines.
 - **Load balancer:** not supported.

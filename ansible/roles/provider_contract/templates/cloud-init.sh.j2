@@ -2,6 +2,7 @@
 # Runs once at first boot. The key is single-use and expires in 30 minutes, so a copy read later is useless.
 set -euo pipefail
 passwd -l root
-sed -i 's/^#\?PasswordAuthentication .*/PasswordAuthentication no/' /etc/ssh/sshd_config
+printf 'PasswordAuthentication no\nPermitRootLogin prohibit-password\n' > /etc/ssh/sshd_config.d/00-shipyard.conf
+systemctl try-reload-or-restart ssh
 curl -fsSL https://tailscale.com/install.sh | sh
 tailscale up --auth-key='{{ tailscale_key }}' --ssh --hostname='{{ hostname }}' --accept-dns=false

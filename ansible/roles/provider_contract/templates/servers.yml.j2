@@ -1,6 +1,6 @@
 # Written by make provision. Don't edit by hand.
 all:
-{% if shipyard_lb_ip is defined %}
+{% if shipyard_load_balancer %}
   vars:
     shipyard_lb_ip: {{ shipyard_lb_ip }}
 {% endif %}

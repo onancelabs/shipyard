@@ -4,7 +4,7 @@
     proxy: "{{ hostvars[groups['role_proxy'] | first] }}"
   ansible.builtin.set_fact:
     dns_content: >-
-      {{ shipyard_lb_ip | default(proxy.shipyard_public_ip, true) if shipyard_exposure == 'public' else proxy.shipyard_tailscale_ip }}
+      {{ (shipyard_lb_ip if shipyard_load_balancer else proxy.shipyard_public_ip) if shipyard_exposure == 'public' else proxy.shipyard_tailscale_ip }}
     dns_proxied: "{{ shipyard_exposure == 'public' }}"
 
 - name: Publish the environment's records
