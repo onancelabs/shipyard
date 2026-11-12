@@ -5,7 +5,7 @@ A provider is one role, `ansible/roles/provision_<name>/`. Core roles never call
 ```mermaid
 flowchart LR
     vars[vars.yml<br/>shipyard_servers] --> contract[provider_contract<br/>validates, works out firewall rules]
-    contract --> provider[provision_&lt;name&gt;<br/>your role]
+    contract --> provider[provision_yourcloud<br/>your role]
     provider -->|shipyard_provisioned| contract2[provider_contract<br/>checks the output]
     contract2 --> inv[servers.yml]
     inv --> core[Core roles and make configure]
