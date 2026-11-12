@@ -1,7 +1,8 @@
 ENV ?= dev
 VAULT ?= --ask-vault-pass
+EXTRA ?=
 INVENTORY := inventories/$(ENV)
-PLAY := cd ansible && uv run ansible-playbook -i $(INVENTORY) $(VAULT)
+PLAY := cd ansible && uv run ansible-playbook -i $(INVENTORY) $(VAULT) $(EXTRA)
 export SSL_CERT_FILE ?= $(shell uv run --frozen python -m certifi 2>/dev/null)
 
 .PHONY: help install lint test check vault-init vault provision configure up verify diag destroy

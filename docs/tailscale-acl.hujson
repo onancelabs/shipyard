@@ -1,0 +1,25 @@
+// Replace <project> with your shipyard_project. Add a block per extra environment.
+{
+	"tagOwners": {
+		"tag:<project>-dev":     ["autogroup:admin"],
+		"tag:<project>-ci-dev":  ["autogroup:admin"],
+		"tag:<project>-prod":    ["autogroup:admin"],
+		"tag:<project>-ci-prod": ["autogroup:admin"],
+	},
+
+	"grants": [
+		// Admins reach every server.
+		{"src": ["autogroup:admin"], "dst": ["tag:<project>-dev", "tag:<project>-prod"], "ip": ["*"]},
+		// Each CI tag reaches only its own environment.
+		{"src": ["tag:<project>-ci-dev"], "dst": ["tag:<project>-dev"], "ip": ["tcp:22"]},
+		{"src": ["tag:<project>-ci-prod"], "dst": ["tag:<project>-prod"], "ip": ["tcp:22"]},
+	],
+
+	"ssh": [
+		{"action": "accept", "src": ["autogroup:admin"], "dst": ["tag:<project>-dev"], "users": ["root"]},
+		// Prod asks admins to log in again before an SSH session.
+		{"action": "check", "src": ["autogroup:admin"], "dst": ["tag:<project>-prod"], "users": ["root"]},
+		{"action": "accept", "src": ["tag:<project>-ci-dev"], "dst": ["tag:<project>-dev"], "users": ["root"]},
+		{"action": "accept", "src": ["tag:<project>-ci-prod"], "dst": ["tag:<project>-prod"], "users": ["root"]},
+	],
+}
